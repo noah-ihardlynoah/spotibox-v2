@@ -5,6 +5,10 @@ import { supabase } from "../../lib/supabase";
 
 const SCOPES = "streaming user-read-email user-read-private user-modify-playback-state";
 
+function getSpotifyRedirectUri() {
+  return process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI || `${window.location.origin}/spotify-callback`;
+}
+
 function randomString(length = 64) {
   const bytes = new Uint8Array(length);
   crypto.getRandomValues(bytes);
@@ -40,25 +44,39 @@ export default function Jukebox({ roomCode, session }) {
   const canControl = session?.role === "host" || session?.role === "cohost";
   const isHost = session?.role === "host";
 
+  async function completeSpotifyLogin(code, state) {
+    const savedState = localStorage.getItem("spotibox:spotify-state");
+    const codeVerifier = localStorage.getItem("spotibox:spotify-verifier");
+    if (!code || state !== savedState || !codeVerifier) {
+      setStatus("Spotify login expired. Please connect again.");
+      return;
+    }
+    const response = await fetch("/api/spotify/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, codeVerifier, redirectUri: getSpotifyRedirectUri() }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.access_token) throw new Error(data.error || "Spotify login failed.");
+    sessionStorage.setItem(`spotibox:spotify-token:${roomCode}`, data.access_token);
+    setToken(data.access_token);
+    localStorage.removeItem("spotibox:spotify-state");
+    localStorage.removeItem("spotibox:spotify-verifier");
+  }
+
   useEffect(() => {
     const storedToken = sessionStorage.getItem(`spotibox:spotify-token:${roomCode}`);
     if (storedToken) setToken(storedToken);
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const state = params.get("state");
-    const savedState = sessionStorage.getItem("spotibox:spotify-state");
-    const codeVerifier = sessionStorage.getItem("spotibox:spotify-verifier");
-    if (code && state === savedState && codeVerifier) {
-      fetch("/api/spotify/token", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, codeVerifier, redirectUri: `${window.location.origin}/spotify-callback` }) })
-        .then((response) => response.json())
-        .then((data) => {
-          if (!data.access_token) throw new Error(data.error || "Spotify login failed.");
-          sessionStorage.setItem(`spotibox:spotify-token:${roomCode}`, data.access_token);
-          setToken(data.access_token);
-          window.history.replaceState({}, "", `/${roomCode}`);
-        })
-        .catch(() => setStatus("Spotify could not connect."));
+    function handleSpotifyCallback(event) {
+      if (event.origin !== window.location.origin || event.data?.type !== "spotibox-spotify-callback") return;
+      if (event.data.error) {
+        setStatus("Spotify connection was cancelled.");
+        return;
+      }
+      completeSpotifyLogin(event.data.code, event.data.state).catch(() => setStatus("Spotify could not connect."));
     }
+    window.addEventListener("message", handleSpotifyCallback);
+    return () => window.removeEventListener("message", handleSpotifyCallback);
   }, [roomCode]);
 
   useEffect(() => {
@@ -125,13 +143,18 @@ export default function Jukebox({ roomCode, session }) {
     const clientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
     if (!clientId) { setStatus("Add NEXT_PUBLIC_SPOTIFY_CLIENT_ID to connect Spotify."); return; }
     const verifier = randomString();
-    sessionStorage.setItem("spotibox:spotify-verifier", verifier);
-    sessionStorage.setItem("spotibox:spotify-room", roomCode);
+    localStorage.setItem("spotibox:spotify-verifier", verifier);
     sha256(verifier).then((challenge) => {
       const state = randomString(16);
-      sessionStorage.setItem("spotibox:spotify-state", state);
-      const params = new URLSearchParams({ client_id: clientId, response_type: "code", redirect_uri: `${window.location.origin}/spotify-callback`, code_challenge_method: "S256", code_challenge: challenge, state, scope: SCOPES });
-      window.location.href = `https://accounts.spotify.com/authorize?${params}`;
+      localStorage.setItem("spotibox:spotify-state", state);
+      const params = new URLSearchParams({ client_id: clientId, response_type: "code", redirect_uri: getSpotifyRedirectUri(), code_challenge_method: "S256", code_challenge: challenge, state, scope: SCOPES });
+      const authWindow = window.open("about:blank", "_blank");
+      if (!authWindow) {
+        setStatus("Allow pop-ups to connect Spotify.");
+        return;
+      }
+      authWindow.location.href = `https://accounts.spotify.com/authorize?${params}`;
+      setStatus("Spotify opened in a new tab.");
     });
   }
 
