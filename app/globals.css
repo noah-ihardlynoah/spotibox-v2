@@ -59,6 +59,7 @@ a {
   flex-direction: column;
   gap: 10px;
   margin: 54px 0 0 82px;
+  user-select: none;
 }
 
 .menu a {
@@ -100,7 +101,7 @@ a {
 
 .name-input {
   display: grid;
-  grid-template-columns: max-content 260px;
+  grid-template-columns: 24px 260px;
   align-items: center;
   column-gap: 24px;
   margin-top: 20px;
@@ -108,7 +109,7 @@ a {
 
 .join-options {
   display: grid;
-  grid-template-columns: max-content 260px max-content;
+  grid-template-columns: 24px 260px max-content;
   align-items: stretch;
   column-gap: 24px;
   margin-top: 20px;
@@ -132,12 +133,54 @@ a {
   height: 100%;
 }
 
+.room-code-error {
+  grid-column: 2;
+  grid-row: 2;
+  margin: -4px 0 0;
+  color: #d66b6b;
+  font-size: 12px;
+}
+
 .menu-input::placeholder {
   color: #145524;
 }
 
 .menu-input:focus {
   border-color: #48c866;
+}
+
+.input-error {
+  margin: -4px 0 0 36px;
+  color: #d66b6b;
+  font-size: 12px;
+}
+
+.name-input + .input-error {
+  margin-left: 48px;
+}
+
+.room-name-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.room-name-form button {
+  padding: 8px 12px;
+  color: var(--background);
+  background: var(--green);
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.room-name-form button:hover {
+  background: var(--bright-green);
+}
+
+.room-name-form .input-error {
+  margin-left: 0;
 }
 
 .join-buttons {
@@ -237,6 +280,44 @@ footer {
   font-size: 12px;
 }
 
+.approval-popup {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 10;
+  width: min(320px, calc(100vw - 48px));
+  padding: 18px;
+  color: var(--green);
+  background: var(--background);
+  border: 1px solid var(--green);
+}
+
+.approval-popup h3 {
+  margin: 0 0 10px;
+}
+
+.approval-popup p {
+  margin: 0 0 16px;
+}
+
+.approval-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.approval-actions button {
+  padding: 8px 12px;
+  color: var(--background);
+  background: var(--green);
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.approval-actions button:hover {
+  background: var(--bright-green);
+}
+
 @media (max-width: 700px) {
   .app-shell {
     margin: 10px;
@@ -249,6 +330,53 @@ footer {
 
   .menu {
     margin-left: 20px;
+  }
+
+  .join-options {
+    grid-template-columns: 24px minmax(0, 260px);
+    column-gap: 12px;
+    row-gap: 10px;
+  }
+
+  .name-input {
+    grid-template-columns: 24px minmax(0, 260px);
+    column-gap: 12px;
+  }
+
+  .name-input + .input-error {
+    margin-left: 36px;
+  }
+
+  .join-options > a {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .join-options > .menu-input {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    height: auto;
+  }
+
+  .join-buttons {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .room-code-error {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .join-options.has-error .join-buttons {
+    grid-row: 3;
+  }
+
+  .join-divider,
+  .create-room-button {
+    margin-left: 36px;
   }
 
   .screen-content {

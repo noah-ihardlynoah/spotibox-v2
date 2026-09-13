@@ -1,4 +1,5 @@
 import Link from "next/link";
+import RoomMembers from "./RoomMembers";
 
 export default async function RoomPage({ params }) {
   const { roomCode } = await params;
@@ -21,11 +22,7 @@ export default async function RoomPage({ params }) {
         </section>
 
         <aside className="participants">
-          <h2>In this room</h2>
-          <ul>
-            <li>You</li>
-          </ul>
-          <p className="room-note">Realtime member tracking will be connected next.</p>
+          <RoomMembers roomCode={roomCode} />
         </aside>
       </div>
     </main>
