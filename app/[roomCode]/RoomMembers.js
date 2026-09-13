@@ -505,18 +505,25 @@ export default function RoomMembers({ roomCode }) {
   return (
     <>
       
-      <div className="room-share" aria-label="Room QR code and URL">
-        {roomUrl && (
-          <QRCodeSVG
-            value={roomUrl}
-            size={128}
-            bgColor="#111111"
-            fgColor="#48c866"
-            title="Scan to join this room"
-          />
-        )}
-        <p>{roomUrl}</p>
-      </div>
+      {(joinedRole === "host" || joinedRole === "cohost") && (
+        <div className="room-share" aria-label="Room QR code and URL">
+          {roomUrl && (
+            <QRCodeSVG
+              value={roomUrl}
+              size={128}
+              bgColor="#111111"
+              fgColor="#48c866"
+              title="Scan to join this room"
+            />
+          )}
+          <p>
+            Or go to {roomUrl.replace(/\/[^/]+$/, "").replace(/^https?:\/\//, "")}
+            <br />
+            Code:{" "}
+            <strong>{roomCode}</strong>
+          </p>
+        </div>
+      )}
       <h2>In this room</h2>
       <ul>
         {members.map((member) => (

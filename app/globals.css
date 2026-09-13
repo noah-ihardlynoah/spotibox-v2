@@ -289,6 +289,11 @@ footer {
   overflow-wrap: anywhere;
 }
 
+.room-share strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+
 .participants ul {
   display: flex;
   flex-direction: column;
