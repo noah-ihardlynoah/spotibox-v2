@@ -55,3 +55,29 @@ create policy "Room participants can create bans"
   for insert
   to anon, authenticated
   with check (room_code is not null and name_key <> '');
+
+create table if not exists public.room_queue (
+  id uuid primary key default gen_random_uuid(),
+  room_code text not null references public.rooms(code) on delete cascade,
+  track_id text not null,
+  track_uri text not null,
+  track_name text not null,
+  artist_name text not null,
+  album_name text not null,
+  image_url text,
+  added_by text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.room_queue enable row level security;
+
+drop policy if exists "Anyone can view room queues" on public.room_queue;
+create policy "Anyone can view room queues"
+  on public.room_queue for select to anon, authenticated using (true);
+
+drop policy if exists "Anyone can add to room queues" on public.room_queue;
+create policy "Anyone can add to room queues"
+  on public.room_queue for insert to anon, authenticated
+  with check (room_code is not null and track_id <> '' and track_uri <> '');
+
+alter table public.room_queue replica identity full;

@@ -14,7 +14,7 @@ import {
 
 const MAX_NAME_LENGTH = 20;
 
-export default function RoomMembers({ roomCode }) {
+export default function RoomMembers({ roomCode, onSessionChange }) {
   const router = useRouter();
   const [members, setMembers] = useState([]);
   const [name, setName] = useState("");
@@ -38,6 +38,14 @@ export default function RoomMembers({ roomCode }) {
 
   joinedRoleRef.current = joinedRole;
   joinedNameRef.current = joinedName;
+
+  useEffect(() => {
+    onSessionChange?.(
+      joinedName && !kicked && !lobbyClosed
+        ? { name: joinedName, role: joinedRole, hasAccess }
+        : null,
+    );
+  }, [hasAccess, joinedName, joinedRole, kicked, lobbyClosed, onSessionChange]);
 
   useEffect(() => {
     setRoomUrl(`${window.location.origin}/${roomCode}`);
@@ -231,6 +239,7 @@ export default function RoomMembers({ roomCode }) {
       if (payload.targetId === participantId.current) {
         if (payload.approved) {
           setRequestStatus("");
+          setJoinedRole("cohost");
           setHasAccess(true);
         } else {
           setRequestStatus("Your co-host request was denied.");
@@ -370,6 +379,22 @@ export default function RoomMembers({ roomCode }) {
       },
     });
     setPendingRequest(null);
+  }
+
+  function requestPromotion() {
+    if (joinedRole !== "guest" || !channelRef.current) {
+      return;
+    }
+
+    channelRef.current.send({
+      type: "broadcast",
+      event: "cohost-request",
+      payload: {
+        requesterId: participantId.current,
+        requesterName: joinedName,
+      },
+    });
+    setRequestStatus("Waiting for host approval...");
   }
 
   function kickMember(member) {
@@ -525,6 +550,11 @@ export default function RoomMembers({ roomCode }) {
         </div>
       )}
       <h2>In this room</h2>
+      {joinedRole === "guest" && (
+        <button className="request-cohost-button" type="button" onClick={requestPromotion} disabled={Boolean(requestStatus)}>
+          {requestStatus || "Request co-host access"}
+        </button>
+      )}
       <ul>
         {members.map((member) => (
           <li key={member.id}>

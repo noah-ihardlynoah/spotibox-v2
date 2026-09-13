@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { use, useState } from "react";
+import Jukebox from "./Jukebox";
 import RoomMembers from "./RoomMembers";
 
-export default async function RoomPage({ params }) {
-  const { roomCode } = await params;
+export default function RoomPage({ params }) {
+  const [session, setSession] = useState(null);
+  const { roomCode } = use(params);
 
   return (
     <main className="app-shell">
@@ -14,17 +19,21 @@ export default async function RoomPage({ params }) {
       </header>
 
       <div className="room-layout">
-        <section className="room-placeholder" aria-label="Room placeholder">
-          <div>
-            <h2>Room {roomCode}</h2>
-            <p>Your room content will appear here.</p>
-          </div>
-        </section>
+        {session?.hasAccess ? (
+          <Jukebox roomCode={roomCode} session={session} />
+        ) : (
+          <section className="room-access-message" aria-live="polite">
+            <p>
+              {session ? "Waiting for host approval..." : "Join the room to access the jukebox."}
+            </p>
+          </section>
+        )}
 
         <aside className="participants">
-          <RoomMembers roomCode={roomCode} />
+          <RoomMembers roomCode={roomCode} onSessionChange={setSession} />
         </aside>
       </div>
+      <footer>(C) Noah Massie 2026</footer>
     </main>
   );
 }
