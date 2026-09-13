@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { use, useState } from "react";
 import Jukebox from "./Jukebox";
 import RoomMembers from "./RoomMembers";
 
 export default function RoomPage({ params }) {
   const [session, setSession] = useState(null);
-  const roomCode = params.roomCode;
+  const { roomCode } = use(params);
 
   return (
     <main className="app-shell">
