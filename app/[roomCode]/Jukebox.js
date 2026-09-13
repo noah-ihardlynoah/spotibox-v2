@@ -870,7 +870,7 @@ export default function Jukebox({ roomCode, session }) {
           )}
           <div className="spotify-queue">
             <div className="queue-heading">
-              <p className="eyebrow">SPOTIFY QUEUE</p>
+              <p className="eyebrow">NON-PRIORITY QUEUE</p>
               <span>
                 {queue.filter((track) => track.source === "spotify").length}{" "}
                 tracks
@@ -879,7 +879,7 @@ export default function Jukebox({ roomCode, session }) {
             {queue.filter((track) => track.source === "spotify").length ===
             0 ? (
               <div className="empty-queue">
-                Load a starter playlist to fill this queue.
+                Spotify's own queue will continue when the priority queue is empty.
               </div>
             ) : (
               <ol>
