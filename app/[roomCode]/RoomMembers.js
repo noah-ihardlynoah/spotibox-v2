@@ -14,7 +14,7 @@ import {
 
 const MAX_NAME_LENGTH = 20;
 
-export default function RoomMembers({ roomCode }) {
+export default function RoomMembers({ roomCode, onSessionChange }) {
   const router = useRouter();
   const [members, setMembers] = useState([]);
   const [name, setName] = useState("");
@@ -38,6 +38,10 @@ export default function RoomMembers({ roomCode }) {
 
   joinedRoleRef.current = joinedRole;
   joinedNameRef.current = joinedName;
+
+  useEffect(() => {
+    onSessionChange?.(joinedName ? { name: joinedName, role: joinedRole, hasAccess } : null);
+  }, [hasAccess, joinedName, joinedRole, onSessionChange]);
 
   useEffect(() => {
     setRoomUrl(`${window.location.origin}/${roomCode}`);
