@@ -79,6 +79,9 @@ export default function Jukebox({ roomCode, session }) {
   const [status, setStatus] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [deletionNotice, setDeletionNotice] = useState(null);
+  const [reactions, setReactions] = useState([]);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+
   const channelRef = useRef(null);
   const playerRef = useRef(null);
   const deviceIdRef = useRef(null);
@@ -91,6 +94,7 @@ export default function Jukebox({ roomCode, session }) {
   const advancingRef = useRef(false);
   const playedTrackIdsRef = useRef(playedTrackIds);
   const pendingUriRef = useRef(null);
+
   queueRef.current = queue;
   tokenRef.current = token;
   sessionRef.current = session;
@@ -105,6 +109,23 @@ export default function Jukebox({ roomCode, session }) {
     playedTrackIdsRef.current = nextPlayedTrackIds;
     setPlayedTrackIds(nextPlayedTrackIds);
     return nextPlayedTrackIds;
+  }
+
+  function triggerReaction(emoji) {
+    const id = `${Date.now()}-${Math.random()}`;
+    const leftOffset = Math.random() * 20; // Float jitter on right side
+    const newReaction = { id, emoji, leftOffset };
+    
+    setReactions((prev) => [...prev, newReaction]);
+    setTimeout(() => {
+      setReactions((prev) => prev.filter((r) => r.id !== id));
+    }, 2500);
+
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "emoji-reaction",
+      payload: { emoji, leftOffset },
+    });
   }
 
   async function completeSpotifyLogin(code, state) {
@@ -175,6 +196,14 @@ export default function Jukebox({ roomCode, session }) {
       .on("broadcast", { event: "spotify-token" }, ({ payload }) =>
         setToken(payload.token),
       )
+      .on("broadcast", { event: "emoji-reaction" }, ({ payload }) => {
+        const id = `${Date.now()}-${Math.random()}`;
+        const newReaction = { id, emoji: payload.emoji, leftOffset: payload.leftOffset || 0 };
+        setReactions((prev) => [...prev, newReaction]);
+        setTimeout(() => {
+          setReactions((prev) => prev.filter((r) => r.id !== id));
+        }, 2500);
+      })
       .on("broadcast", { event: "spotify-token-request" }, () => {
         if (isHost && tokenRef.current) {
           channel.send({
@@ -302,12 +331,6 @@ export default function Jukebox({ roomCode, session }) {
         );
         lastPlayerStateRef.current = state;
 
-        // Spotify's device sometimes auto-advances on its own (into its
-        // native queue, or whatever it had lined up) instead of waiting
-        // for our explicit next-track command. Every time the SDK reports
-        // a new track, re-check the *live* queue: if it wasn't the track
-        // we just told it to play and a jukebox request is still waiting,
-        // override immediately so priority requests always win.
         if (trackChanged && currentSdkTrack) {
           const commandedThisTrack =
             pendingUriRef.current && currentSdkTrack.uri === pendingUriRef.current;
@@ -468,10 +491,6 @@ export default function Jukebox({ roomCode, session }) {
   }
 
   function playNext() {
-    // Always re-read the live queue right when we need it, not a stale
-    // snapshot — external edits from any client (add/delete/reorder) or
-    // Spotify's own device jumping ahead are respected either way. The
-    // jukebox (priority) queue always wins over Spotify's own queue.
     const currentQueue = queueRef.current;
     const priorityIndex = currentQueue.findIndex(
       (track) => track.source !== "spotify",
@@ -510,12 +529,37 @@ export default function Jukebox({ roomCode, session }) {
     }
   }
 
+  function bumpAndPlayTrack(track) {
+    if (!canControl) return;
+    const currentQueue = queueRef.current;
+    const filteredQueue = currentQueue.filter(
+      (item) => !(item.id === track.id && item.source === track.source)
+    );
+    const nextQueue = [track, ...filteredQueue];
+    
+    setQueue(nextQueue);
+    queueRef.current = nextQueue;
+    
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "queue-sync",
+      payload: { queue: nextQueue },
+    });
+    
+    if (isHost) {
+      playNext();
+    } else {
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "player-command",
+        payload: { action: "next" },
+      });
+    }
+  }
+
   function addToQueue() {
     const item = trackForQueue(selectedTrack, session?.name || "Guest");
     const currentQueue = queueRef.current;
-    // Insert after the last priority (non-Spotify) track so new requests
-    // land at the bottom of the jukebox queue, chronological order —
-    // but still ahead of any Spotify-sourced tracks.
     let insertAt = 0;
     for (let i = 0; i < currentQueue.length; i += 1) {
       if (currentQueue[i].source !== "spotify") insertAt = i + 1;
@@ -535,19 +579,22 @@ export default function Jukebox({ roomCode, session }) {
     setStatus(`${item.name} added to the queue.`);
   }
 
+  function handleDragStart(index) {
+    if (!canControl) return;
+    setDraggedIndex(index);
+  }
 
-  function moveTrack(index, direction) {
-    if (
-      !canControl ||
-      index + direction < 0 ||
-      index + direction >= queueRef.current.length
-    )
-      return;
+  function handleDragOver(e) {
+    if (!canControl) return;
+    e.preventDefault();
+  }
+
+  function handleDrop(dropIndex) {
+    if (!canControl || draggedIndex === null || draggedIndex === dropIndex) return;
     const nextQueue = [...queueRef.current];
-    [nextQueue[index], nextQueue[index + direction]] = [
-      nextQueue[index + direction],
-      nextQueue[index],
-    ];
+    const [draggedItem] = nextQueue.splice(draggedIndex, 1);
+    nextQueue.splice(dropIndex, 0, draggedItem);
+    setDraggedIndex(null);
     setQueue(nextQueue);
     channelRef.current?.send({
       type: "broadcast",
@@ -593,9 +640,21 @@ export default function Jukebox({ roomCode, session }) {
       ? "This song is already in the queue."
       : "";
 
-
   return (
     <section className="jukebox" aria-label="Spotibox jukebox">
+      {/* Floating Reactions Container */}
+      <div className="reaction-stream" aria-hidden="true">
+        {reactions.map((r) => (
+          <span
+            key={r.id}
+            className="floating-emoji"
+            style={{ right: `${20 + r.leftOffset}px` }}
+          >
+            {r.emoji}
+          </span>
+        ))}
+      </div>
+
       <div className="jukebox-topline">
         <span>SEARCH</span>
         <span>{tokenReady ? "SPOTIFY CONNECTED" : "SPOTIFY OFFLINE"}</span>
@@ -695,6 +754,22 @@ export default function Jukebox({ roomCode, session }) {
               &gt;|
             </button>
           </div>
+
+          {/* Emoji Reactions for ALL participants */}
+          <div className="reaction-bar" aria-label="Reaction buttons">
+            {["❤️", "👌", "💯", "💀"].map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                className="reaction-button"
+                onClick={() => triggerReaction(emoji)}
+                aria-label={`React with ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+
           {!canControl && (
             <p className="jukebox-hint">Host and co-hosts control playback.</p>
           )}
@@ -716,7 +791,23 @@ export default function Jukebox({ roomCode, session }) {
                 .map((track) => {
                   const index = queue.indexOf(track);
                   return (
-                    <li key={`${track.id}-${index}`}>
+                    <li
+                      key={`${track.id}-${index}`}
+                      draggable={canControl}
+                      onDragStart={() => handleDragStart(index)}
+                      onDragOver={handleDragOver}
+                      onDrop={() => handleDrop(index)}
+                      className={draggedIndex === index ? "dragging" : ""}
+                    >
+                      {canControl && (
+                        <span
+                          className="drag-handle"
+                          title="Drag to reorder"
+                          aria-label="Drag handle"
+                        >
+                          ====
+                        </span>
+                      )}
                       <img src={track.image} alt="" />
                       <span>
                         <strong>{track.name}</strong>
@@ -726,37 +817,26 @@ export default function Jukebox({ roomCode, session }) {
                       </span>
                       <em>{track.addedBy}</em>
                       {canControl && (
-                        <div className="queue-move">
+                        <div className="queue-actions">
                           <button
+                            className="queue-play-now"
                             type="button"
-                            onClick={() => moveTrack(index, -1)}
-                            disabled={index === 0}
-                            aria-label="Move up"
-                            title="Move up"
+                            onClick={() => bumpAndPlayTrack(track)}
+                            aria-label={`Play ${track.name} now`}
+                            title="Bump to top & play"
                           >
-                            ↑
+                            ▶
                           </button>
                           <button
+                            className="queue-delete"
                             type="button"
-                            onClick={() => moveTrack(index, 1)}
-                            disabled={index === queue.length - 1}
-                            aria-label="Move down"
-                            title="Move down"
+                            onClick={() => deleteQueueTrack(track)}
+                            aria-label={`Delete ${track.name}`}
+                            title="Delete song"
                           >
-                            ↓
+                            ×
                           </button>
                         </div>
-                      )}
-                      {canControl && (
-                        <button
-                          className="queue-delete"
-                          type="button"
-                          onClick={() => deleteQueueTrack(track)}
-                          aria-label={`Delete ${track.name}`}
-                          title="Delete song"
-                        >
-                          ×
-                        </button>
                       )}
                     </li>
                   );
