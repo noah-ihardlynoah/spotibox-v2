@@ -19,7 +19,15 @@ export default function RoomPage({ params }) {
       </header>
 
       <div className="room-layout">
-        <Jukebox roomCode={roomCode} session={session} />
+        {session?.hasAccess ? (
+          <Jukebox roomCode={roomCode} session={session} />
+        ) : (
+          <section className="room-access-message" aria-live="polite">
+            <p>
+              {session ? "Waiting for host approval..." : "Join the room to access the jukebox."}
+            </p>
+          </section>
+        )}
 
         <aside className="participants">
           <RoomMembers roomCode={roomCode} onSessionChange={setSession} />

@@ -22,6 +22,31 @@ body {
   font-family: Consolas, Courier, monospace;
 }
 
+.repository-link {
+  position: fixed;
+  top: 22px;
+  right: 28px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-green);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.github-mark {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.repository-link:hover {
+  color: var(--bright-green);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 a {
   color: inherit;
 }
@@ -257,6 +282,14 @@ footer {
   color: var(--muted-green);
 }
 
+.room-access-message {
+  display: grid;
+  min-height: 480px;
+  place-items: center;
+  border: 1px solid var(--green);
+  color: var(--muted-green);
+}
+
 .jukebox {
   min-width: 0;
   color: var(--green);
@@ -283,6 +316,109 @@ footer {
   display: flex;
   gap: 12px;
   margin: 0 0 12px;
+}
+
+.playlist-dialog {
+  width: min(620px, 100%);
+  max-height: min(680px, calc(100vh - 40px));
+  overflow: hidden;
+  padding: 24px;
+  background: var(--background);
+  border: 1px solid var(--bright-green);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 45%);
+}
+
+.playlist-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.playlist-dialog-heading .eyebrow {
+  margin-bottom: 8px;
+}
+
+.playlist-dialog h2 {
+  margin: 0;
+  color: var(--bright-green);
+  font-size: 20px;
+}
+
+.dialog-close {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--green);
+  background: none;
+  border: 1px solid var(--green);
+  font: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.dialog-close:hover {
+  color: var(--background);
+  background: var(--bright-green);
+}
+
+.playlist-list {
+  display: flex;
+  max-height: 520px;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  border: 1px solid var(--green);
+}
+
+.playlist-option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+  color: var(--green);
+  background: var(--background);
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.playlist-option:hover:not(:disabled) {
+  color: var(--bright-green);
+  background: #171717;
+}
+
+.playlist-option:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.playlist-option img {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  object-fit: cover;
+}
+
+.playlist-option span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.playlist-option strong,
+.playlist-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-option small {
+  color: var(--muted-green);
 }
 
 .jukebox-search {
@@ -444,6 +580,7 @@ footer {
 
 .player-controls {
   display: flex;
+  align-items: center;
   gap: 16px;
   margin-top: 28px;
 }
@@ -469,12 +606,75 @@ footer {
   cursor: not-allowed;
 }
 
+.playback-waveform {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--green);
+}
+
+.playback-waveform i {
+  display: block;
+  width: 3px;
+  height: calc(8px + (var(--wave-height, 0.4) * 16px));
+  background: currentColor;
+  transform-origin: center;
+}
+
+.playback-waveform i:nth-child(2),
+.playback-waveform i:nth-child(4) {
+  height: calc(8px + (var(--wave-height, 0.4) * 16px));
+}
+
+.playback-waveform i:nth-child(3) {
+  height: calc(8px + (var(--wave-height, 0.4) * 16px));
+}
+
+.playback-waveform.is-playing i {
+  animation: waveform-pulse 760ms ease-in-out infinite alternate;
+}
+
+.playback-waveform.is-playing i:nth-child(2) {
+  animation-delay: 130ms;
+}
+
+.playback-waveform.is-playing i:nth-child(3) {
+  animation-delay: 260ms;
+}
+
+.playback-waveform.is-playing i:nth-child(4) {
+  animation-delay: 390ms;
+}
+
+.playback-waveform.is-playing i:nth-child(5) {
+  animation-delay: 520ms;
+}
+
+@keyframes waveform-pulse {
+  from {
+    transform: scaleY(0.9);
+  }
+
+  to {
+    transform: scaleY(1.08);
+  }
+}
+
 .queue-heading {
   margin-bottom: 24px;
 }
 
 .queue-heading .eyebrow {
   margin: 0;
+}
+
+.spotify-queue {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--muted-green);
 }
 
 .queue-panel ol {
@@ -489,7 +689,7 @@ footer {
 
 .queue-panel li {
   display: grid;
-  grid-template-columns: 18px 42px minmax(0, 1fr) max-content max-content;
+  grid-template-columns: 18px 42px minmax(0, 1fr) max-content max-content max-content;
   align-items: center;
   gap: 12px;
   counter-increment: queue;
@@ -545,6 +745,61 @@ footer {
   cursor: not-allowed;
 }
 
+.queue-delete {
+  width: 24px;
+  height: 24px;
+  grid-column: 6;
+  padding: 0;
+  color: var(--green);
+  background: none;
+  border: 1px solid var(--green);
+  font: inherit;
+  font-size: 18px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.queue-delete:hover {
+  color: var(--background);
+  background: #d66b6b;
+  border-color: #d66b6b;
+}
+
+.queue-deletion-notice {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 25;
+  display: flex;
+  width: min(420px, calc(100vw - 48px));
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+  color: var(--background);
+  background: var(--bright-green);
+  border: 1px solid var(--bright-green);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 45%);
+}
+
+.queue-deletion-notice span {
+  line-height: 1.4;
+}
+
+.queue-deletion-notice button {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  padding: 0;
+  color: var(--background);
+  background: none;
+  border: 1px solid var(--background);
+  font: inherit;
+  font-size: 18px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
 .track-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -580,6 +835,13 @@ footer {
 
 .track-modal p:not(.eyebrow) {
   margin: 0 0 24px;
+}
+
+.track-modal .queue-warning {
+  margin: 0 0 18px;
+  color: #d66b6b;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .text-button {
@@ -774,6 +1036,11 @@ footer {
   .app-shell {
     margin: 10px;
     padding: 16px;
+  }
+
+  .repository-link {
+    top: 14px;
+    right: 16px;
   }
 
   .brand-link h1 {

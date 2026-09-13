@@ -40,8 +40,12 @@ export default function RoomMembers({ roomCode, onSessionChange }) {
   joinedNameRef.current = joinedName;
 
   useEffect(() => {
-    onSessionChange?.(joinedName ? { name: joinedName, role: joinedRole, hasAccess } : null);
-  }, [hasAccess, joinedName, joinedRole, onSessionChange]);
+    onSessionChange?.(
+      joinedName && !kicked && !lobbyClosed
+        ? { name: joinedName, role: joinedRole, hasAccess }
+        : null,
+    );
+  }, [hasAccess, joinedName, joinedRole, kicked, lobbyClosed, onSessionChange]);
 
   useEffect(() => {
     setRoomUrl(`${window.location.origin}/${roomCode}`);
