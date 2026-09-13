@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { computeWaveformBars } from "../../lib/waveform";
 
 const SCOPES =
   "streaming user-read-email user-read-private user-read-playback-state user-read-currently-playing user-modify-playback-state playlist-read-private playlist-read-collaborative";
@@ -67,22 +68,6 @@ function formatDuration(durationMs) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function analysisLevels(segment) {
-  if (!segment) return [0.25, 0.35, 0.45, 0.35, 0.25];
-  const timbre = segment.timbre || [];
-  const loudness = Math.max(0, Math.min(1, (segment.loudness_max + 60) / 60));
-  const bass = Math.max(
-    0.2,
-    Math.min(1, (Math.abs(timbre[1] || 0) + Math.abs(timbre[2] || 0)) / 24),
-  );
-  const treble = Math.max(
-    0.2,
-    Math.min(1, (Math.abs(timbre[10] || 0) + Math.abs(timbre[11] || 0)) / 24),
-  );
-  const body = Math.max(0.2, Math.min(1, loudness * 1.2));
-  return [bass * 0.75, body, Math.max(bass, treble), body * 0.9, treble * 0.8];
-}
-
 export default function Jukebox({ roomCode, session }) {
   const [token, setToken] = useState("");
   const [search, setSearch] = useState("");
@@ -112,6 +97,8 @@ export default function Jukebox({ roomCode, session }) {
   const lastPlayerStateRef = useRef(null);
   const advancingRef = useRef(false);
   const playedTrackIdsRef = useRef(playedTrackIds);
+  const positionAnchorRef = useRef({ position: 0, timestamp: Date.now() });
+  const pendingUriRef = useRef(null);
   queueRef.current = queue;
   tokenRef.current = token;
   sessionRef.current = session;
@@ -309,10 +296,13 @@ export default function Jukebox({ roomCode, session }) {
 
         const previousState = lastPlayerStateRef.current;
         const currentSdkTrack = state.track_window.current_track;
+        const previousSdkTrack = previousState?.track_window?.current_track;
+        const trackChanged = Boolean(
+          previousState && currentSdkTrack?.id !== previousSdkTrack?.id,
+        );
         const finishedNaturally = Boolean(
           previousState &&
-          previousState.track_window.current_track?.id ===
-            currentSdkTrack?.id &&
+          previousSdkTrack?.id === currentSdkTrack?.id &&
           !previousState.paused &&
           state.paused &&
           previousState.position > 1000 &&
@@ -320,6 +310,33 @@ export default function Jukebox({ roomCode, session }) {
         );
         lastPlayerStateRef.current = state;
         setPlaybackPosition(state.position || 0);
+        positionAnchorRef.current = {
+          position: state.position || 0,
+          timestamp: Date.now(),
+        };
+
+        // Spotify's device sometimes auto-advances on its own (into its
+        // native queue, or whatever it had lined up) instead of waiting
+        // for our explicit next-track command. Every time the SDK reports
+        // a new track, re-check the *live* queue: if it wasn't the track
+        // we just told it to play and a jukebox request is still waiting,
+        // override immediately so priority requests always win.
+        if (trackChanged && currentSdkTrack) {
+          const commandedThisTrack =
+            pendingUriRef.current && currentSdkTrack.uri === pendingUriRef.current;
+          pendingUriRef.current = null;
+          const priorityTrackWaiting = queueRef.current.some(
+            (track) => track.source !== "spotify",
+          );
+          if (!commandedThisTrack && priorityTrackWaiting && !advancingRef.current) {
+            advancingRef.current = true;
+            playNext();
+            window.setTimeout(() => {
+              advancingRef.current = false;
+            }, 1500);
+            return;
+          }
+        }
 
         if (
           finishedNaturally &&
@@ -423,6 +440,15 @@ export default function Jukebox({ roomCode, session }) {
   }, [currentTrack?.id, isHost, token]);
 
   useEffect(() => {
+    if (!isHost || !isPlaying) return undefined;
+    const interval = window.setInterval(() => {
+      const { position, timestamp } = positionAnchorRef.current;
+      setPlaybackPosition(position + (Date.now() - timestamp));
+    }, 90);
+    return () => window.clearInterval(interval);
+  }, [isHost, isPlaying]);
+
+  useEffect(() => {
     if (!search.trim() || !token) {
       setResults([]);
       return undefined;
@@ -485,6 +511,10 @@ export default function Jukebox({ roomCode, session }) {
   }
 
   function playNext() {
+    // Always re-read the live queue right when we need it, not a stale
+    // snapshot — external edits from any client (add/delete/reorder) or
+    // Spotify's own device jumping ahead are respected either way. The
+    // jukebox (priority) queue always wins over Spotify's own queue.
     const currentQueue = queueRef.current;
     const priorityIndex = currentQueue.findIndex(
       (track) => track.source !== "spotify",
@@ -495,6 +525,7 @@ export default function Jukebox({ roomCode, session }) {
     const nextIndex = priorityIndex >= 0 ? priorityIndex : spotifyIndex;
 
     if (nextIndex < 0) {
+      pendingUriRef.current = null;
       return;
     }
 
@@ -506,7 +537,8 @@ export default function Jukebox({ roomCode, session }) {
       event: "queue-sync",
       payload: { queue: nextQueue },
     });
-    if (nextTrack && deviceIdRef.current)
+    if (nextTrack && deviceIdRef.current) {
+      pendingUriRef.current = nextTrack.uri;
       fetch(
         `https://api.spotify.com/v1/me/player/play?device_id=${deviceIdRef.current}`,
         {
@@ -518,6 +550,7 @@ export default function Jukebox({ roomCode, session }) {
           body: JSON.stringify({ uris: [nextTrack.uri] }),
         },
       );
+    }
   }
 
   function addToQueue() {
@@ -533,66 +566,6 @@ export default function Jukebox({ roomCode, session }) {
     setStatus(`${item.name} added to the queue.`);
   }
 
-  async function openPlaylistDialog() {
-    if (!token) {
-      setStatus("Connect Spotify before choosing a playlist.");
-      return;
-    }
-    setPlaylistDialogOpen(true);
-    setIsLoadingPlaylists(true);
-    try {
-      const allPlaylists = [];
-      let nextUrl = "https://api.spotify.com/v1/me/playlists?limit=50";
-      while (nextUrl) {
-        const response = await fetch(nextUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error?.message || "Unable to load playlists.");
-        allPlaylists.push(...(data.items || []));
-        nextUrl = data.next;
-      }
-      setPlaylists(allPlaylists);
-    } catch (error) {
-      setStatus(error.message || "Unable to load playlists.");
-      setPlaylistDialogOpen(false);
-    } finally {
-      setIsLoadingPlaylists(false);
-    }
-  }
-
-  async function loadPlaylist(playlist) {
-    if (!playlist?.id || !token) return;
-    setIsLoadingPlaylist(true);
-    const response = await fetch(
-      `https://api.spotify.com/v1/playlists/${playlist.id}/tracks?limit=50`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    const data = await response.json();
-    setIsLoadingPlaylist(false);
-    if (!response.ok) {
-      setStatus(data.error?.message || "Unable to load playlist.");
-      return;
-    }
-    const playlistTracks = (data.items || []).map((item) => ({
-      ...trackForQueue(item.track, "Playlist"),
-      source: "spotify",
-    }));
-    const nextQueue = [
-      ...playlistTracks,
-      ...queueRef.current.filter(
-        (track) => !playlistTracks.some((item) => item.id === track.id),
-      ),
-    ];
-    setQueue(nextQueue);
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "queue-sync",
-      payload: { queue: nextQueue },
-    });
-    setPlaylistDialogOpen(false);
-    setStatus(`${playlistTracks.length} tracks from ${playlist.name} loaded.`);
-  }
 
   function moveTrack(index, direction) {
     if (
@@ -647,7 +620,7 @@ export default function Jukebox({ roomCode, session }) {
       (!nextSegment || positionSeconds < nextSegment.start)
     );
   });
-  const waveformLevels = analysisLevels(currentSegment);
+  const waveformBars = computeWaveformBars(isPlaying ? currentSegment : null, 27);
   const selectedTrackIsQueued = Boolean(
     selectedTrack && queue.some((track) => track.id === selectedTrack.id),
   );
@@ -660,11 +633,6 @@ export default function Jukebox({ roomCode, session }) {
       ? "This song is already in the queue."
       : "";
 
-  useEffect(() => {
-    document.querySelectorAll(".playback-waveform i").forEach((bar, index) => {
-      bar.style.setProperty("--wave-height", waveformLevels[index] || 0.25);
-    });
-  }, [waveformLevels]);
 
   return (
     <section className="jukebox" aria-label="Spotibox jukebox">
@@ -695,13 +663,6 @@ export default function Jukebox({ roomCode, session }) {
           </button>
         )}
       </div>
-      {isHost && tokenReady && (
-        <div className="playlist-loader">
-          <button className="solid-button" type="button" onClick={openPlaylistDialog}>
-            Choose starter playlist
-          </button>
-        </div>
-      )}
       {playlistDialogOpen && (
         <div className="track-modal-backdrop" role="presentation" onClick={() => setPlaylistDialogOpen(false)}>
           <div className="playlist-dialog" role="dialog" aria-modal="true" aria-labelledby="playlist-dialog-title" onClick={(event) => event.stopPropagation()}>
@@ -782,28 +743,29 @@ export default function Jukebox({ roomCode, session }) {
             >
               |&lt;
             </button>
-            {canControl && (
-              <span
-                className={`playback-waveform ${isPlaying ? "is-playing" : ""}`}
-                aria-label={isPlaying ? "Playing" : "Paused"}
-                title={isPlaying ? "Playing" : "Paused"}
+            <span className="playpause-group">
+              <button
+                type="button"
+                disabled={!canControl}
+                onClick={() => sendCommand(isPlaying ? "pause" : "play")}
+                aria-label={isPlaying ? "Pause" : "Play"}
+                title={isPlaying ? "Pause" : "Play"}
               >
-                <i />
-                <i />
-                <i />
-                <i />
-                <i />
-              </span>
-            )}
-            <button
-              type="button"
-              disabled={!canControl}
-              onClick={() => sendCommand(isPlaying ? "pause" : "play")}
-              aria-label={isPlaying ? "Pause" : "Play"}
-              title={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? "||" : ">"}
-            </button>
+                {isPlaying ? "||" : ">"}
+              </button>
+              {canControl && (
+                <span className="waveform" aria-hidden="true">
+                  {waveformBars.map((level, index) => (
+                    <i
+                      key={index}
+                      style={{
+                        transform: `scaleY(${Math.max(level, 0.08).toFixed(3)})`,
+                      }}
+                    />
+                  ))}
+                </span>
+              )}
+            </span>
             <button
               type="button"
               disabled={!canControl}
@@ -814,6 +776,30 @@ export default function Jukebox({ roomCode, session }) {
               &gt;|
             </button>
           </div>
+          <style jsx>{`
+            .playpause-group {
+              display: inline-flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .waveform {
+              display: inline-flex;
+              align-items: flex-end;
+              gap: 2px;
+              height: 22px;
+              width: 74px;
+            }
+            .waveform i {
+              display: block;
+              width: 2px;
+              flex: 1 1 auto;
+              height: 100%;
+              background: #1ed760;
+              border-radius: 1px;
+              transform-origin: bottom;
+              transition: transform 90ms linear;
+            }
+          `}</style>
           {!canControl && (
             <p className="jukebox-hint">Host and co-hosts control playback.</p>
           )}
@@ -909,17 +895,6 @@ export default function Jukebox({ roomCode, session }) {
                         </small>
                       </span>
                       <em>{track.addedBy}</em>
-                      {canControl && (
-                        <button
-                          className="queue-delete"
-                          type="button"
-                          onClick={() => deleteQueueTrack(track)}
-                          aria-label={`Delete ${track.name}`}
-                          title="Delete song"
-                        >
-                          ×
-                        </button>
-                      )}
                     </li>
                   ))}
               </ol>
