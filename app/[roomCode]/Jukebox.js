@@ -512,7 +512,19 @@ export default function Jukebox({ roomCode, session }) {
 
   function addToQueue() {
     const item = trackForQueue(selectedTrack, session?.name || "Guest");
-    const nextQueue = [item, ...queueRef.current];
+    const currentQueue = queueRef.current;
+    // Insert after the last priority (non-Spotify) track so new requests
+    // land at the bottom of the jukebox queue, chronological order —
+    // but still ahead of any Spotify-sourced tracks.
+    let insertAt = 0;
+    for (let i = 0; i < currentQueue.length; i += 1) {
+      if (currentQueue[i].source !== "spotify") insertAt = i + 1;
+    }
+    const nextQueue = [
+      ...currentQueue.slice(0, insertAt),
+      item,
+      ...currentQueue.slice(insertAt),
+    ];
     setQueue(nextQueue);
     channelRef.current?.send({
       type: "broadcast",
