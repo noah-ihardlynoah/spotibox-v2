@@ -501,7 +501,7 @@ export default function Jukebox({ roomCode, session }) {
         {
           method: "PUT",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${tokenRef.current}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ uris: [nextTrack.uri] }),
