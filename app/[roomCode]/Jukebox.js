@@ -754,7 +754,6 @@ export default function Jukebox({ roomCode, session }) {
                           <button
                             type="button"
                             onClick={() => playTrack(index)}
-                            disabled={index === queue.length - 1}
                             aria-label="Play"
                             title="Play"
                           >
