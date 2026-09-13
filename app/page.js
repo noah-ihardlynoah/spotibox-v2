@@ -1,7 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createRoom, roomExists } from "../lib/rooms";
+
+const MAX_NAME_LENGTH = 20;
+const ROOM_CODE_PATTERN = /[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]/g;
 
 function createRoomCode(length = 8) {
   const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -21,6 +25,19 @@ export default function HomePage() {
   const [roomCode, setRoomCode] = useState("");
   const [nameError, setNameError] = useState("");
   const [roomCodeError, setRoomCodeError] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
+
+  useEffect(() => {
+    const error = new URLSearchParams(window.location.search).get("error");
+
+    if (error === "room-not-found") {
+      setRoomCodeError("This room does not exist.");
+    }
+
+    if (error === "name-in-use") {
+      setNameError("This name is already in use in this room.");
+    }
+  }, []);
 
   function requireName() {
     const trimmedName = name.trim();
@@ -30,16 +47,29 @@ export default function HomePage() {
       return false;
     }
 
+    if (trimmedName.length > MAX_NAME_LENGTH) {
+      setNameError(`Name must be ${MAX_NAME_LENGTH} characters or fewer.`);
+      return false;
+    }
+
     setNameError("");
     return true;
   }
 
-  function handleCreateRoom() {
+  async function handleCreateRoom() {
     if (!requireName()) {
       return;
     }
 
     const roomCode = createRoomCode();
+
+    try {
+      await createRoom(roomCode);
+    } catch {
+      setRoomCodeError("Unable to create a room. Try again.");
+      return;
+    }
+
     sessionStorage.setItem(
       "spotibox:pending-join",
       JSON.stringify({ roomCode, name: name.trim(), role: "host" })
@@ -47,13 +77,31 @@ export default function HomePage() {
     router.push(`/${roomCode}`);
   }
 
-  function handleJoinRoomasGuest() {
+  async function handleJoinRoomasGuest() {
+    if (isJoining) {
+      return;
+    }
+
     if (!requireName()) {
       return;
     }
 
     if (!roomCode) {
       setRoomCodeError("Enter a room code before continuing.");
+      return;
+    }
+
+    setIsJoining(true);
+
+    try {
+      if (!(await roomExists(roomCode))) {
+        setRoomCodeError("That room does not exist.");
+        setIsJoining(false);
+        return;
+      }
+    } catch {
+      setRoomCodeError("Unable to verify that room. Try again.");
+      setIsJoining(false);
       return;
     }
 
@@ -64,13 +112,31 @@ export default function HomePage() {
     router.push(`/${roomCode}`);
   }
 
-  function handleJoinRoomasHost() {
+  async function handleJoinRoomasHost() {
+    if (isJoining) {
+      return;
+    }
+
     if (!requireName()) {
       return;
     }
 
     if (!roomCode) {
       setRoomCodeError("Enter a room code before continuing.");
+      return;
+    }
+
+    setIsJoining(true);
+
+    try {
+      if (!(await roomExists(roomCode))) {
+        setRoomCodeError("That room does not exist.");
+        setIsJoining(false);
+        return;
+      }
+    } catch {
+      setRoomCodeError("Unable to verify that room. Try again.");
+      setIsJoining(false);
       return;
     }
 
@@ -100,6 +166,7 @@ export default function HomePage() {
             type="text"
             placeholder="Enter name"
             aria-label="Name"
+            maxLength={MAX_NAME_LENGTH}
             value={name}
             aria-invalid={Boolean(nameError)}
             onChange={(event) => {
@@ -124,9 +191,15 @@ export default function HomePage() {
           aria-label="Room code"
           value={roomCode}
           maxLength={8}
+          pattern="[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}"
           autoCapitalize="characters"
           onChange={(event) => {
-            setRoomCode(event.target.value.toUpperCase().slice(0, 8));
+            setRoomCode(
+              event.target.value
+                .toUpperCase()
+                .replace(ROOM_CODE_PATTERN, "")
+                .slice(0, 8)
+            );
             setRoomCodeError("");
           }}
           />
@@ -136,10 +209,18 @@ export default function HomePage() {
           )}
 
           <div className="join-buttons">
-            <button type="button" onClick={handleJoinRoomasGuest}>
+            <button
+              type="button"
+              onClick={handleJoinRoomasGuest}
+              disabled={isJoining}
+            >
             Join Room as Guest
             </button>
-            <button type="button" onClick={handleJoinRoomasHost}>
+            <button
+              type="button"
+              onClick={handleJoinRoomasHost}
+              disabled={isJoining}
+            >
               Join Room as Co-Host
             </button>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { createRoom } from "../../lib/rooms";
 
 function createRoomCode(length = 8) {
   const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -13,8 +14,13 @@ function createRoomCode(length = 8) {
 export default function CreateRoomPage() {
   const router = useRouter();
 
-  function handleCreateRoom() {
-    router.push(`/${createRoomCode()}`);
+  async function handleCreateRoom() {
+    try {
+      const roomCode = await createRoom(createRoomCode());
+      router.push(`/${roomCode}`);
+    } catch {
+      return;
+    }
   }
 
   return (

@@ -136,7 +136,7 @@ a {
 .room-code-error {
   grid-column: 2;
   grid-row: 2;
-  margin: -4px 0 0;
+  margin: 6px 0 0;
   color: #d66b6b;
   font-size: 12px;
 }
@@ -205,6 +205,11 @@ a {
   color: #48c866;
 }
 
+.join-buttons button:disabled {
+  color: var(--muted-green);
+  cursor: wait;
+}
+
 
 footer {
   position: absolute;
@@ -263,6 +268,27 @@ footer {
   font-weight: 800;
 }
 
+.room-share {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 20px 0 24px;
+}
+
+.room-share svg {
+  display: block;
+  border: 8px solid var(--background);
+}
+
+.room-share p {
+  max-width: 240px;
+  margin: 0;
+  color: var(--bright-green);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .participants ul {
   display: flex;
   flex-direction: column;
@@ -272,6 +298,68 @@ footer {
 }
 
 .participants li {
+  position: relative;
+  padding-right: 28px;
+  color: var(--bright-green);
+}
+
+.member-actions {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.kick-button {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.kick-button span {
+  display: block;
+  width: 9px;
+  height: 9px;
+  margin: 0 auto 4px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.kick-button:hover {
+  color: var(--bright-green);
+}
+
+.member-action-menu {
+  position: absolute;
+  top: 24px;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 92px;
+  padding: 4px 0;
+  color: var(--green);
+  background: var(--background);
+  border: 1px solid var(--green);
+}
+
+.member-action-menu button {
+  padding: 6px 10px;
+  color: inherit;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.member-action-menu button:hover {
   color: var(--bright-green);
 }
 

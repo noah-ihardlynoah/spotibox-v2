@@ -1,6 +1,6 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  devIndicators: true,
-};
+// /** @type {import('next').NextConfig} */
+// const nextConfig = {
+//   devIndicators: false,
+// };
 
-module.exports = nextConfig;
+// module.exports = nextConfig;
