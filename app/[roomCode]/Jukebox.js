@@ -467,6 +467,12 @@ export default function Jukebox({ roomCode, session }) {
       });
   }
 
+
+  function playTrack(index) {
+    moveTrack(index, index)
+    playNext()
+  }
+
   function playNext() {
     // Always re-read the live queue right when we need it, not a stale
     // snapshot — external edits from any client (add/delete/reorder) or
@@ -744,6 +750,15 @@ export default function Jukebox({ roomCode, session }) {
                             title="Move down"
                           >
                             ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => playTrack(index)}
+                            disabled={index === queue.length - 1}
+                            aria-label="Play"
+                            title="Play"
+                          >
+                            ▷
                           </button>
                         </div>
                       )}
