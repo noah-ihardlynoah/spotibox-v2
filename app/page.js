@@ -240,8 +240,6 @@ export default function HomePage() {
         
 
       </nav>
-
-      <footer>(C) Noah Massie 2026</footer>
     </main>
   );
 }

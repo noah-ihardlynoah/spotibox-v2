@@ -33,7 +33,6 @@ export default function RoomPage({ params }) {
           <RoomMembers roomCode={roomCode} onSessionChange={setSession} />
         </aside>
       </div>
-      <footer>(C) Noah Massie 2026</footer>
     </main>
   );
 }
