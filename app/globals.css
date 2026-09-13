@@ -279,6 +279,12 @@ footer {
   margin: 18px 0 12px;
 }
 
+.playlist-loader {
+  display: flex;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
 .jukebox-search {
   width: 100%;
   min-width: 0;
@@ -483,7 +489,7 @@ footer {
 
 .queue-panel li {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) max-content;
+  grid-template-columns: 18px 42px minmax(0, 1fr) max-content max-content;
   align-items: center;
   gap: 12px;
   counter-increment: queue;
@@ -501,6 +507,7 @@ footer {
 
 .queue-panel li span {
   grid-column: 3;
+  text-align: left;
 }
 
 .queue-panel li em {
@@ -508,6 +515,34 @@ footer {
   color: var(--muted-green);
   font-size: 11px;
   font-style: normal;
+}
+
+.queue-move {
+  display: flex;
+  gap: 4px;
+  grid-column: 5;
+}
+
+.queue-move button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--green);
+  background: none;
+  border: 1px solid var(--green);
+  font: inherit;
+  cursor: pointer;
+}
+
+.queue-move button:hover:not(:disabled) {
+  color: var(--background);
+  background: var(--bright-green);
+}
+
+.queue-move button:disabled {
+  color: var(--muted-green);
+  border-color: var(--muted-green);
+  cursor: not-allowed;
 }
 
 .track-modal-backdrop {
@@ -675,6 +710,28 @@ footer {
   font-size: 12px;
 }
 
+.request-cohost-button {
+  margin: 0 0 18px;
+  padding: 8px 10px;
+  color: var(--green);
+  background: none;
+  border: 1px solid var(--green);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.request-cohost-button:hover:not(:disabled) {
+  color: var(--background);
+  background: var(--bright-green);
+}
+
+.request-cohost-button:disabled {
+  color: var(--muted-green);
+  border-color: var(--muted-green);
+  cursor: wait;
+}
+
 .approval-popup {
   position: fixed;
   top: 24px;
@@ -799,6 +856,10 @@ footer {
     grid-template-columns: 110px minmax(0, 1fr);
     gap: 16px;
     padding: 16px;
+  }
+
+  .playlist-loader {
+    flex-direction: column;
   }
 
   .track-modal > img {

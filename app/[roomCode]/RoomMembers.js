@@ -235,6 +235,7 @@ export default function RoomMembers({ roomCode, onSessionChange }) {
       if (payload.targetId === participantId.current) {
         if (payload.approved) {
           setRequestStatus("");
+          setJoinedRole("cohost");
           setHasAccess(true);
         } else {
           setRequestStatus("Your co-host request was denied.");
@@ -374,6 +375,22 @@ export default function RoomMembers({ roomCode, onSessionChange }) {
       },
     });
     setPendingRequest(null);
+  }
+
+  function requestPromotion() {
+    if (joinedRole !== "guest" || !channelRef.current) {
+      return;
+    }
+
+    channelRef.current.send({
+      type: "broadcast",
+      event: "cohost-request",
+      payload: {
+        requesterId: participantId.current,
+        requesterName: joinedName,
+      },
+    });
+    setRequestStatus("Waiting for host approval...");
   }
 
   function kickMember(member) {
@@ -529,6 +546,11 @@ export default function RoomMembers({ roomCode, onSessionChange }) {
         </div>
       )}
       <h2>In this room</h2>
+      {joinedRole === "guest" && (
+        <button className="request-cohost-button" type="button" onClick={requestPromotion} disabled={Boolean(requestStatus)}>
+          {requestStatus || "Request co-host access"}
+        </button>
+      )}
       <ul>
         {members.map((member) => (
           <li key={member.id}>
